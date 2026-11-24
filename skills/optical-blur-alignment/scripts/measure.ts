@@ -1,6 +1,6 @@
 /**
  * Blur the content of an element and measure how far its rounded end is
- * from the concentric center of the container's inner frame.
+ * from the concentric center of the container's rounded end.
  * Blurring and centroid measurement happen in the browser with CSS filter and Canvas.
  * See SKILL.md for usage. Requires Node.js 23.6+ (type stripping) or Bun.
  */
@@ -10,6 +10,8 @@ import { chromium } from "playwright";
 
 const DEFAULT_BLUR_RATIO = 0.1;
 const DEFAULT_TOLERANCE = 2;
+const MIN_INNER_RADIUS = 4;
+const EDGE_GUARD = 6;
 
 type Edge = "left" | "right";
 
@@ -18,13 +20,16 @@ type Options = {
   url?: string;
   selector?: string;
   container?: string;
+  hide?: string;
   radius: number;
-  padding: number;
+  paddingX: number;
+  paddingY: number;
   edge: Edge;
   tolerance: number;
   blurRatio: number;
   browser?: string;
   output?: string;
+  plainOutput?: string;
 };
 
 type Blob = { left: number; right: number; top: number; bottom: number };
@@ -52,33 +57,40 @@ type Measurement = {
   edge: Edge;
   size: { width: number; height: number };
   blur: { sigma: number; ratio: number };
-  frame: { outerRadius: number; padding: number; innerRadius: number };
+  frame: {
+    outerRadius: number;
+    paddingX: number;
+    paddingY: number;
+    innerRadius: number;
+    usesContainerRoundedEnd: boolean;
+  };
   polarity: "light" | "dark";
   blob: { centroidX: number; centroidY: number; left: number; right: number; top: number; bottom: number };
   roundEnd: RoundEnd;
   target: { x: number; y: number };
   offset: { centroidX: number; centroidY: number; edge: number; roundEnd: number };
   aligned: boolean;
-  suggestion: { translateX: number; paddingLeftDelta: number; paddingRightDelta: number };
+  suggestion: {
+    translateX: number;
+    paddingLeftDelta: number;
+    paddingRightDelta: number;
+  };
   verificationImage?: string;
+  plainImage?: string;
 };
 
 type CliValues = Record<string, string | undefined>;
 
-function numberValue(values: CliValues, key: string, fallback: number): number {
-  const raw = values[key];
-  if (raw === undefined) return fallback;
+function nonNegative(raw: string | undefined, label: string): number {
+  if (raw === undefined) throw new Error(`--${label} is required`);
   const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) throw new Error(`--${key} must be a non-negative number: ${raw}`);
+  if (!Number.isFinite(value) || value < 0) throw new Error(`--${label} must be a non-negative number: ${raw}`);
   return value;
 }
 
-function requiredNumber(values: CliValues, key: string): number {
+function numberValue(values: CliValues, key: string, fallback: number): number {
   const raw = values[key];
-  if (raw === undefined) throw new Error(`--${key} is required`);
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) throw new Error(`--${key} must be a non-negative number: ${raw}`);
-  return value;
+  return raw === undefined ? fallback : nonNegative(raw, key);
 }
 
 function parseArgs(argv: string[]): Options {
@@ -89,13 +101,17 @@ function parseArgs(argv: string[]): Options {
       url: { type: "string" },
       selector: { type: "string" },
       container: { type: "string" },
+      hide: { type: "string" },
       radius: { type: "string" },
       padding: { type: "string" },
+      "padding-x": { type: "string" },
+      "padding-y": { type: "string" },
       edge: { type: "string" },
       tolerance: { type: "string" },
       "blur-ratio": { type: "string" },
       browser: { type: "string" },
       output: { type: "string" },
+      "plain-output": { type: "string" },
     },
   });
   const values = parsed as CliValues;
@@ -104,7 +120,9 @@ function parseArgs(argv: string[]): Options {
   const selector = values.selector;
   if (!image && !url) throw new Error("either --image or --url is required");
   if (image && url) throw new Error("--image and --url cannot be used together");
-  if (url && !selector) throw new Error("--selector is required with --url");
+  if (url && !selector && !values.container) {
+    throw new Error("--selector or --container is required with --url");
+  }
   const edge = values.edge ?? "left";
   if (edge !== "left" && edge !== "right") throw new Error("--edge must be left or right");
   return {
@@ -112,13 +130,16 @@ function parseArgs(argv: string[]): Options {
     url,
     selector,
     container: values.container,
-    radius: requiredNumber(values, "radius"),
-    padding: requiredNumber(values, "padding"),
+    hide: values.hide,
+    radius: nonNegative(values.radius, "radius"),
+    paddingX: nonNegative(values["padding-x"] ?? values.padding, "padding-x"),
+    paddingY: nonNegative(values["padding-y"] ?? values.padding, "padding-y"),
     edge,
     tolerance: numberValue(values, "tolerance", DEFAULT_TOLERANCE),
     blurRatio: numberValue(values, "blur-ratio", DEFAULT_BLUR_RATIO),
     browser: values.browser ?? process.env.OPTICAL_BLUR_BROWSER,
     output: values.output,
+    plainOutput: values["plain-output"],
   };
 }
 
@@ -128,12 +149,12 @@ function round(value: number): number {
 
 function frameSvg(m: Measurement, color: string): string {
   const { width, height } = m.size;
-  const { padding, innerRadius } = m.frame;
+  const { paddingX, paddingY, innerRadius } = m.frame;
   const { x, y } = m.target;
   const { centroidX, centroidY } = m.blob;
   const { x: roundEndX, y: roundEndY } = m.roundEnd;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="${padding}" y="${padding}" width="${width - 2 * padding}" height="${height - 2 * padding}" rx="${innerRadius}" fill="none" stroke="${color}" stroke-width="2" />
+  <rect x="${paddingX}" y="${paddingY}" width="${Math.max(0, width - 2 * paddingX)}" height="${Math.max(0, height - 2 * paddingY)}" rx="${Math.max(0, innerRadius)}" fill="none" stroke="${color}" stroke-width="2" />
   <line x1="${x - 9}" y1="${y}" x2="${x + 9}" y2="${y}" stroke="${color}" stroke-width="2" />
   <line x1="${x}" y1="${y - 9}" x2="${x}" y2="${y + 9}" stroke="${color}" stroke-width="2" />
   <line x1="${x}" y1="${y}" x2="${roundEndX}" y2="${roundEndY}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 3" />
@@ -142,15 +163,20 @@ function frameSvg(m: Measurement, color: string): string {
 </svg>`;
 }
 
-async function analyze(
-  page: import("playwright").Page,
-  originalUrl: string,
-  blurredUrl: string,
-  padding: number,
-  innerRadius: number,
-  outerRadius: number,
-): Promise<Analysis> {
-  return page.evaluate(async ({ originalUrl, blurredUrl, padding, innerRadius, outerRadius }) => {
+type AnalyzeParams = {
+  originalUrl: string;
+  blurredUrl: string;
+  paddingX: number;
+  paddingY: number;
+  innerRadius: number;
+  outerRadius: number;
+  useContainerRoundedEnd: boolean;
+  edgeGuard: number;
+};
+
+async function analyze(page: import("playwright").Page, params: AnalyzeParams): Promise<Analysis> {
+  return page.evaluate(async (params) => {
+    const { originalUrl, blurredUrl, paddingX, paddingY, innerRadius, outerRadius, useContainerRoundedEnd, edgeGuard } = params;
     const load = async (url: string) => {
       const image = new Image();
       image.src = url;
@@ -168,25 +194,32 @@ async function analyze(
 
     const [original, blurred] = await Promise.all([load(originalUrl), load(blurredUrl)]);
     const { width, height } = original;
-    const frameWidth = width - 2 * padding;
-    const frameHeight = height - 2 * padding;
+    const frameWidth = Math.max(0, width - 2 * paddingX);
+    const frameHeight = Math.max(0, height - 2 * paddingY);
     const contains = (x: number, y: number, left: number, top: number, w: number, h: number, radius: number) => {
       const ix = x - left;
       const iy = y - top;
       if (ix < 0 || iy < 0 || ix >= w || iy >= h) return false;
-      const nearestX = Math.min(Math.max(ix, radius), w - radius);
-      const nearestY = Math.min(Math.max(iy, radius), h - radius);
+      const nearestX = Math.min(Math.max(ix, radius), Math.max(radius, w - radius));
+      const nearestY = Math.min(Math.max(iy, radius), Math.max(radius, h - radius));
       return (ix - nearestX) ** 2 + (iy - nearestY) ** 2 <= radius ** 2;
     };
-    const insideFrame = (x: number, y: number) => contains(x, y, padding, padding, frameWidth, frameHeight, innerRadius);
+    const insideFrame = (x: number, y: number) =>
+      innerRadius > 0 && contains(x, y, paddingX, paddingY, frameWidth, frameHeight, innerRadius);
     const insideContainer = (x: number, y: number) => contains(x, y, 0, 0, width, height, outerRadius);
-    const searchMargin = 2;
-    const insideSearch = (x: number, y: number) => contains(
-      x, y,
-      padding - searchMargin, padding - searchMargin,
-      frameWidth + 2 * searchMargin, frameHeight + 2 * searchMargin,
-      innerRadius + searchMargin,
+    const guard = Math.min(edgeGuard, Math.max(1, Math.floor((Math.min(width, height) - 1) / 2)));
+    const insideGuarded = (x: number, y: number) => contains(
+      x, y, guard, guard,
+      Math.max(0, width - 2 * guard), Math.max(0, height - 2 * guard),
+      Math.max(0, outerRadius - guard),
     );
+    const insideSearch = useContainerRoundedEnd
+      ? insideGuarded
+      : (x: number, y: number) => contains(
+          x, y, Math.max(0, paddingX - 2), Math.max(0, paddingY - 2),
+          Math.min(width, frameWidth + 4), Math.min(height, frameHeight + 4),
+          innerRadius + 2,
+        );
 
     const histogram = new Array<number>(256).fill(0);
     let originalMin = 255;
@@ -196,11 +229,12 @@ async function analyze(
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const index = (y * width + x) * 4;
-        if (insideContainer(x, y) && !insideFrame(x, y)) {
-          histogram[Math.round(luminance(original.data, index))]! += 1;
+        const before = luminance(original.data, index);
+        const guarded = insideGuarded(x, y);
+        if (insideContainer(x, y) && (useContainerRoundedEnd ? !guarded : !insideFrame(x, y))) {
+          histogram[Math.round(before)]! += 1;
         }
-        if (insideSearch(x, y)) {
-          const before = luminance(original.data, index);
+        if (useContainerRoundedEnd ? guarded : insideSearch(x, y)) {
           const after = luminance(blurred.data, index);
           if (before < originalMin) originalMin = before;
           if (before > originalMax) originalMax = before;
@@ -223,7 +257,7 @@ async function analyze(
       }
     }
     if (backgroundCount === 0) {
-      throw new Error("Could not read the container background. Check --radius and --padding.");
+      throw new Error("Could not read the container background. Check --radius and padding.");
     }
     const polarity: "light" | "dark" = originalMax - background >= background - originalMin ? "light" : "dark";
     const threshold = polarity === "light"
@@ -264,16 +298,10 @@ async function analyze(
       centroidY: sumY / total,
       blob: { left, right, top, bottom },
     };
-  }, { originalUrl, blurredUrl, padding, innerRadius, outerRadius });
+  }, params);
 }
 
 async function measure(options: Options): Promise<Measurement> {
-  if (options.padding === 0) {
-    throw new Error("--padding must be greater than 0 (otherwise the inner frame equals the container)");
-  }
-  if (options.radius <= options.padding) {
-    throw new Error("--radius must be greater than --padding (the inner radius would be 0 or less)");
-  }
   const browser = await chromium.launch(options.browser ? { executablePath: options.browser } : {});
   try {
     const page = await browser.newPage({ deviceScaleFactor: 1 });
@@ -290,12 +318,11 @@ async function measure(options: Options): Promise<Measurement> {
       await page.goto(options.url!);
     }
 
-    const inner = page.locator(options.image ? "#target" : options.selector!).first();
     const container = options.image
-      ? inner
+      ? page.locator("#target").first()
       : options.container
         ? page.locator(options.container).first()
-        : inner.locator("xpath=..");
+        : page.locator(options.selector!).first().locator("xpath=..");
     await container.scrollIntoViewIfNeeded();
     const box = await container.boundingBox();
     if (!box) throw new Error("Could not get the container size");
@@ -309,18 +336,25 @@ async function measure(options: Options): Promise<Measurement> {
     if (options.radius > clip.width / 2 || options.radius > clip.height / 2) {
       throw new Error(`--radius must be at most half the shorter side of the container (container ${clip.width}x${clip.height}, radius ${options.radius})`);
     }
-    const innerRadius = options.radius - options.padding;
-    if (innerRadius > (clip.width - 2 * options.padding) / 2 || innerRadius > (clip.height - 2 * options.padding) / 2) {
-      throw new Error("The inner radius exceeds the inner frame size. Check --radius and --padding.");
+    const rawInnerRadius = options.radius - options.paddingY;
+    const useContainerRoundedEnd = rawInnerRadius < MIN_INNER_RADIUS;
+    const innerRadius = Math.max(0, rawInnerRadius);
+    if (!useContainerRoundedEnd && (
+      innerRadius > (clip.width - 2 * options.paddingX) / 2
+      || innerRadius > (clip.height - 2 * options.paddingY) / 2
+    )) {
+      throw new Error("The inner radius exceeds the inner frame size. Check --radius and padding.");
     }
 
     const sigma = round(clip.height * options.blurRatio);
-    const original = await page.screenshot({ clip });
+    const original = options.plainOutput
+      ? await page.screenshot({ clip, path: options.plainOutput })
+      : await page.screenshot({ clip });
     const originalUrl = `data:image/png;base64,${original.toString("base64")}`;
 
-    let blurred: Buffer;
+    let blurredUrl: string;
     if (options.image) {
-      blurred = Buffer.from(await page.evaluate(async ({ url, sigma }) => {
+      blurredUrl = await page.evaluate(async ({ url, sigma }) => {
         const image = new Image();
         image.src = url;
         await image.decode();
@@ -331,23 +365,65 @@ async function measure(options: Options): Promise<Measurement> {
         if (!context) throw new Error("Could not get a 2D canvas context");
         context.filter = `blur(${sigma}px)`;
         context.drawImage(image, 0, 0);
-        return canvas.toDataURL("image/png").split(",")[1]!;
-      }, { url: originalUrl, sigma }), "base64");
+        return canvas.toDataURL("image/png");
+      }, { url: originalUrl, sigma });
     } else {
-      await inner.evaluate((element, value) => {
-        (element as HTMLElement).style.filter = `blur(${value}px)`;
+      await container.evaluate((element, { selector, hide }) => {
+        const host = element as HTMLElement;
+        const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+        const textNodes: Text[] = [];
+        while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+        for (const node of textNodes) {
+          if (!node.textContent?.trim()) continue;
+          const span = document.createElement("span");
+          span.className = "optical-blur-text-node";
+          node.replaceWith(span);
+          span.appendChild(node);
+        }
+        const chosen = selector ? host.querySelector(selector) : null;
+        const hidden = hide ? host.querySelector(hide) : null;
+        const targets: Element[] = [];
+        const toHide = new Set<Element>();
+        if (chosen) {
+          targets.push(chosen);
+          let cursor: Element = chosen;
+          while (cursor.parentElement && cursor.parentElement !== host) {
+            const parent = cursor.parentElement;
+            for (const sibling of Array.from(parent.children)) {
+              if (sibling !== cursor) toHide.add(sibling);
+            }
+            cursor = parent;
+          }
+          for (const child of Array.from(host.children)) {
+            if (child !== cursor) toHide.add(child);
+          }
+        } else {
+          for (const child of Array.from(host.children)) {
+            if (child !== hidden) targets.push(child);
+          }
+        }
+        if (hidden && hidden !== chosen) toHide.add(hidden);
+        for (const target of targets) toHide.delete(target);
+        if (targets.length === 0) throw new Error("No content element left to measure");
+        for (const element of toHide) (element as HTMLElement).style.visibility = "hidden";
+        for (const target of targets) target.setAttribute("data-optical-blur-target", "");
+      }, { selector: options.selector ?? null, hide: options.hide ?? null });
+      await page.locator("[data-optical-blur-target]").evaluateAll((elements, value) => {
+        for (const element of elements) (element as HTMLElement).style.filter = `blur(${value}px)`;
       }, sigma);
-      blurred = await page.screenshot({ clip });
+      blurredUrl = `data:image/png;base64,${(await page.screenshot({ clip })).toString("base64")}`;
     }
 
-    const analysis = await analyze(
-      page,
+    const analysis = await analyze(page, {
       originalUrl,
-      `data:image/png;base64,${blurred.toString("base64")}`,
-      options.padding,
+      blurredUrl,
+      paddingX: options.paddingX,
+      paddingY: options.paddingY,
       innerRadius,
-      options.radius,
-    );
+      outerRadius: options.radius,
+      useContainerRoundedEnd,
+      edgeGuard: EDGE_GUARD,
+    });
 
     const target = {
       x: options.edge === "left" ? options.radius : analysis.width - options.radius,
@@ -366,8 +442,10 @@ async function measure(options: Options): Promise<Measurement> {
       blur: { sigma, ratio: options.blurRatio },
       frame: {
         outerRadius: options.radius,
-        padding: options.padding,
+        paddingX: options.paddingX,
+        paddingY: options.paddingY,
         innerRadius: round(innerRadius),
+        usesContainerRoundedEnd: useContainerRoundedEnd,
       },
       polarity: analysis.polarity,
       blob: {
@@ -403,6 +481,7 @@ async function measure(options: Options): Promise<Measurement> {
       await page.screenshot({ clip, path: options.output });
       result.verificationImage = options.output;
     }
+    if (options.plainOutput) result.plainImage = options.plainOutput;
     return result;
   } finally {
     await browser.close();
