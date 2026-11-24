@@ -1,0 +1,16 @@
+{
+  "name": "optical-blur-alignment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Skill and measurement script for optical alignment by blurring UI content",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "measure": "node scripts/measure.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.64.1"
+  }
+}
