@@ -11,9 +11,11 @@ Two rules are enough to read this skill on its own: align by perceived weight in
 
 ## How it works
 
-If the container's corner radius is `R` and its padding is `p`, the inner frame radius is `r = R - p`. With equal horizontal and vertical padding, the center of the inner frame's rounded end coincides with the center of the container's rounded end, and that is the target.
+If the container's corner radius is `R` and its padding is `p`, the inner frame radius is `r = R - p`. With equal horizontal and vertical padding, the center of the inner frame's rounded end coincides with the center of the container's rounded end.
 
-**When the vertical padding is small** (a chip with `padding: 0 16px`, for example), the inner radius can collapse to zero or a few pixels. In that case the inner frame has no meaningful roundness to be concentric with. The script switches to `usesContainerRoundedEnd: true`: it measures against the center of the **container's** rounded end and searches the whole container instead of a thin inner band. Reason: the shape the eye actually compares the content against is the container's rounded end, not a degenerate inner frame. Pass the horizontal and vertical padding separately with `--padding-x` and `--padding-y`. `--padding <value>` remains an alias that sets both.
+Pass the horizontal and vertical padding separately with `--padding-x` and `--padding-y`. `--padding <value>` remains an alias that sets both. The inner radius is always `innerRadius = R - paddingY`; vertical padding of zero does not shrink it (a chip with `R = 20`, `padding: 0 16px` has `innerRadius: 20`).
+
+**Which rounded end is the target?** The target is always the center of the **container's** rounded end: `x = R` for the left end and `x = width - R` for the right end. An inner frame can serve as the target only when its rounded ends are concentric with the container's, which requires equal horizontal and vertical padding. With `padding: 0 16px`, the inner frame's left roundness would be centered at `paddingX + innerRadius = 36`, while the container's is at `20`; there is no single inner radius that makes them concentric. The script therefore reports `usesContainerRoundedEnd: true` for unequal padding, and also when `innerRadius` collapses below 4px (vertical padding close to `R`, not zero). `innerRadius` stays in the output as the inner frame's radius; it sets the boundary of `inner-frame` searches and is not the target when the flag is true. Reason: the shape the eye compares the content against is the container's rounded end.
 
 | Shape | What to align |
 |---|---|
@@ -65,10 +67,12 @@ The output is JSON plus the verification image (and the plain image when request
 
 - `offset.roundEnd`: **the offset in pixels between the blob's rounded end center and the target center**. Closer to zero is better alignment. Tolerance is 2px by default; change it with `--tolerance`.
 - `offset.centroidX` / `centroidY`: the offset of the blob's centroid itself. Informational only. For wide text, the centroid can be far off even when `roundEnd` is zero.
-- `frame.usesContainerRoundedEnd`: `true` when the inner radius collapsed and the container's rounded end was used as the target.
+- `offset.edge`: the raw bounding-box edge distance before the rounded end is taken into account. It differs from `roundEnd` by the blob's radius; do not use it to write CSS.
+- `frame.usesContainerRoundedEnd`: `true` when horizontal and vertical padding differ by 1px or more, or when the inner radius collapsed below 4px. It describes the **target**, not where pixels are searched.
+- `search`: the rectangle used to collect blob pixels (`mode`, `insetX`, `insetY`, `width`, `height`, `radius`). With a collapsed inner radius the mode is `container`; otherwise it is `inner-frame` with a 2px margin, even when the target is the container's rounded end. For the chip (`padding-x 16`, `padding-y 0`) it is `inner-frame` with `insetY: 0` and `radius: 22`, so the search covers almost the full 40px height. An earlier revision searched only the strict inner frame (an 8px-tall band when both paddings were 16px); the current 2px margin makes the "Add" blob's lower edge y=26 instead of 24. That is why its `roundEnd` moved from -1.5 to -2 without the text being moved.
 - `aligned`: `true` when `roundEnd` and the vertical centroid are both within tolerance.
 - `suggestion`: the displacement to apply. `translateX` is the primary value (positive right, negative left); `paddingLeftDelta` and `paddingRightDelta` are the same displacement expressed as padding changes, with the right side negated.
-- Verification image: the blurred blob with the inner frame drawn over it. Green means aligned, blue means off. The cross at the target center uses the same color as the frame, the orange dot is the blob's rounded end center, and the yellow dot is the centroid.
+- Verification image: the blurred blob with the frame that matches the target drawn over it (the inner frame, or the container outline when `usesContainerRoundedEnd` is true). Green means aligned, blue means off. The cross at the target center uses the same color as the frame, the orange dot is the blob's rounded end center, and the yellow dot is the centroid.
 
 Enlarge the image and look at it. Even with a zero offset, fix the position if the blob cuts into the inner corner or leaves an uneven gap at the top and bottom.
 

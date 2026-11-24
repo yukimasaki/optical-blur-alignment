@@ -1,6 +1,6 @@
 # Optical Blur Alignment
 
-A skill for placing an icon or text inside a button, pill, chip, FAB, or rounded card so that it looks centered. Blur the content into a blob of perceived weight, then align the blob's rounded end with the center of the container's rounded end (or the inner frame's rounded end when the padding leaves a meaningful inner frame). The measurement script reports the offset in pixels and draws a blue (off) or green (aligned) verification image.
+A skill for placing an icon or text inside a button, pill, chip, FAB, or rounded card so that it looks centered. Blur the content into a blob of perceived weight, then align the blob's rounded end with the center of the container's rounded end. The measurement script reports the offset in pixels and draws a blue (off) or green (aligned) verification image.
 
 ## Install
 
@@ -69,7 +69,7 @@ MIT. See [LICENSE](LICENSE).
 
 # 光学アライメント（ぼかしてそろえる）
 
-ボタン、ピル、チップ、FAB、角丸のカードの中にアイコンや文字を置くとき、見た目の中心に合わせるためのスキルです。中身をぼかして「見た目の重さの塊」にし、その丸い端を容器の丸い端の中心に合わせます。内枠に十分な丸みが残る場合は内枠の丸い端を目標にします。計測スクリプトはずれを px で返し、ずれていれば青、合っていれば緑の確認画像を出します。
+ボタン、ピル、チップ、FAB、角丸のカードの中にアイコンや文字を置くとき、見た目の中心に合わせるためのスキルです。中身をぼかして「見た目の重さの塊」にし、その丸い端を容器の丸い端の中心に合わせます。計測スクリプトはずれを px で返し、ずれていれば青、合っていれば緑の確認画像を出します。
 
 ## 入れ方
 

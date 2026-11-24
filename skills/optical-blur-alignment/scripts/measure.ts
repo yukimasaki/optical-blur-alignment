@@ -12,6 +12,7 @@ const DEFAULT_BLUR_RATIO = 0.1;
 const DEFAULT_TOLERANCE = 2;
 const MIN_INNER_RADIUS = 4;
 const EDGE_GUARD = 6;
+const SEARCH_MARGIN = 2;
 
 type Edge = "left" | "right";
 
@@ -34,6 +35,14 @@ type Options = {
 
 type Blob = { left: number; right: number; top: number; bottom: number };
 type RoundEnd = { x: number; y: number };
+type SearchRegion = {
+  mode: "inner-frame" | "container";
+  insetX: number;
+  insetY: number;
+  width: number;
+  height: number;
+  radius: number;
+};
 
 type Analysis = {
   width: number;
@@ -65,6 +74,7 @@ type Measurement = {
     usesContainerRoundedEnd: boolean;
   };
   polarity: "light" | "dark";
+  search: SearchRegion;
   blob: { centroidX: number; centroidY: number; left: number; right: number; top: number; bottom: number };
   roundEnd: RoundEnd;
   target: { x: number; y: number };
@@ -86,6 +96,11 @@ function nonNegative(raw: string | undefined, label: string): number {
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) throw new Error(`--${label} must be a non-negative number: ${raw}`);
   return value;
+}
+
+function resolvedPadding(values: CliValues, key: "padding-x" | "padding-y"): number {
+  const explicit = values[key];
+  return nonNegative(explicit ?? values.padding, explicit !== undefined ? key : "padding");
 }
 
 function numberValue(values: CliValues, key: string, fallback: number): number {
@@ -132,8 +147,8 @@ function parseArgs(argv: string[]): Options {
     container: values.container,
     hide: values.hide,
     radius: nonNegative(values.radius, "radius"),
-    paddingX: nonNegative(values["padding-x"] ?? values.padding, "padding-x"),
-    paddingY: nonNegative(values["padding-y"] ?? values.padding, "padding-y"),
+    paddingX: resolvedPadding(values, "padding-x"),
+    paddingY: resolvedPadding(values, "padding-y"),
     edge,
     tolerance: numberValue(values, "tolerance", DEFAULT_TOLERANCE),
     blurRatio: numberValue(values, "blur-ratio", DEFAULT_BLUR_RATIO),
@@ -149,12 +164,15 @@ function round(value: number): number {
 
 function frameSvg(m: Measurement, color: string): string {
   const { width, height } = m.size;
-  const { paddingX, paddingY, innerRadius } = m.frame;
+  const { paddingX, paddingY, innerRadius, outerRadius, usesContainerRoundedEnd } = m.frame;
   const { x, y } = m.target;
+  const frameRect = usesContainerRoundedEnd
+    ? { x: 0, y: 0, width, height, radius: outerRadius }
+    : { x: paddingX, y: paddingY, width: Math.max(0, width - 2 * paddingX), height: Math.max(0, height - 2 * paddingY), radius: Math.max(0, innerRadius) };
   const { centroidX, centroidY } = m.blob;
   const { x: roundEndX, y: roundEndY } = m.roundEnd;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="${paddingX}" y="${paddingY}" width="${Math.max(0, width - 2 * paddingX)}" height="${Math.max(0, height - 2 * paddingY)}" rx="${Math.max(0, innerRadius)}" fill="none" stroke="${color}" stroke-width="2" />
+  <rect x="${frameRect.x}" y="${frameRect.y}" width="${frameRect.width}" height="${frameRect.height}" rx="${frameRect.radius}" fill="none" stroke="${color}" stroke-width="2" />
   <line x1="${x - 9}" y1="${y}" x2="${x + 9}" y2="${y}" stroke="${color}" stroke-width="2" />
   <line x1="${x}" y1="${y - 9}" x2="${x}" y2="${y + 9}" stroke="${color}" stroke-width="2" />
   <line x1="${x}" y1="${y}" x2="${roundEndX}" y2="${roundEndY}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 3" />
@@ -170,13 +188,12 @@ type AnalyzeParams = {
   paddingY: number;
   innerRadius: number;
   outerRadius: number;
-  useContainerRoundedEnd: boolean;
-  edgeGuard: number;
+  search: SearchRegion;
 };
 
 async function analyze(page: import("playwright").Page, params: AnalyzeParams): Promise<Analysis> {
   return page.evaluate(async (params) => {
-    const { originalUrl, blurredUrl, paddingX, paddingY, innerRadius, outerRadius, useContainerRoundedEnd, edgeGuard } = params;
+    const { originalUrl, blurredUrl, paddingX, paddingY, innerRadius, outerRadius, search } = params;
     const load = async (url: string) => {
       const image = new Image();
       image.src = url;
@@ -207,19 +224,10 @@ async function analyze(page: import("playwright").Page, params: AnalyzeParams): 
     const insideFrame = (x: number, y: number) =>
       innerRadius > 0 && contains(x, y, paddingX, paddingY, frameWidth, frameHeight, innerRadius);
     const insideContainer = (x: number, y: number) => contains(x, y, 0, 0, width, height, outerRadius);
-    const guard = Math.min(edgeGuard, Math.max(1, Math.floor((Math.min(width, height) - 1) / 2)));
-    const insideGuarded = (x: number, y: number) => contains(
-      x, y, guard, guard,
-      Math.max(0, width - 2 * guard), Math.max(0, height - 2 * guard),
-      Math.max(0, outerRadius - guard),
+    const containerMode = search.mode === "container";
+    const insideSearch = (x: number, y: number) => contains(
+      x, y, search.insetX, search.insetY, search.width, search.height, search.radius,
     );
-    const insideSearch = useContainerRoundedEnd
-      ? insideGuarded
-      : (x: number, y: number) => contains(
-          x, y, Math.max(0, paddingX - 2), Math.max(0, paddingY - 2),
-          Math.min(width, frameWidth + 4), Math.min(height, frameHeight + 4),
-          innerRadius + 2,
-        );
 
     const histogram = new Array<number>(256).fill(0);
     let originalMin = 255;
@@ -230,11 +238,10 @@ async function analyze(page: import("playwright").Page, params: AnalyzeParams): 
       for (let x = 0; x < width; x += 1) {
         const index = (y * width + x) * 4;
         const before = luminance(original.data, index);
-        const guarded = insideGuarded(x, y);
-        if (insideContainer(x, y) && (useContainerRoundedEnd ? !guarded : !insideFrame(x, y))) {
+        if (insideContainer(x, y) && (containerMode ? !insideSearch(x, y) : !insideFrame(x, y))) {
           histogram[Math.round(before)]! += 1;
         }
-        if (useContainerRoundedEnd ? guarded : insideSearch(x, y)) {
+        if (insideSearch(x, y)) {
           const after = luminance(blurred.data, index);
           if (before < originalMin) originalMin = before;
           if (before > originalMax) originalMax = before;
@@ -337,14 +344,34 @@ async function measure(options: Options): Promise<Measurement> {
       throw new Error(`--radius must be at most half the shorter side of the container (container ${clip.width}x${clip.height}, radius ${options.radius})`);
     }
     const rawInnerRadius = options.radius - options.paddingY;
-    const useContainerRoundedEnd = rawInnerRadius < MIN_INNER_RADIUS;
+    const usesContainerRoundedEnd = Math.abs(options.paddingX - options.paddingY) >= 1 || rawInnerRadius < MIN_INNER_RADIUS;
     const innerRadius = Math.max(0, rawInnerRadius);
-    if (!useContainerRoundedEnd && (
+    if (rawInnerRadius >= MIN_INNER_RADIUS && (
       innerRadius > (clip.width - 2 * options.paddingX) / 2
       || innerRadius > (clip.height - 2 * options.paddingY) / 2
     )) {
       throw new Error("The inner radius exceeds the inner frame size. Check --radius and padding.");
     }
+    const guard = Math.min(EDGE_GUARD, Math.max(1, Math.floor((Math.min(clip.width, clip.height) - 1) / 2)));
+    const frameWidth = Math.max(0, clip.width - 2 * options.paddingX);
+    const frameHeight = Math.max(0, clip.height - 2 * options.paddingY);
+    const search: SearchRegion = rawInnerRadius < MIN_INNER_RADIUS
+      ? {
+          mode: "container",
+          insetX: guard,
+          insetY: guard,
+          width: Math.max(0, clip.width - 2 * guard),
+          height: Math.max(0, clip.height - 2 * guard),
+          radius: Math.max(0, options.radius - guard),
+        }
+      : {
+          mode: "inner-frame",
+          insetX: Math.max(0, options.paddingX - SEARCH_MARGIN),
+          insetY: Math.max(0, options.paddingY - SEARCH_MARGIN),
+          width: Math.min(clip.width, frameWidth + 2 * SEARCH_MARGIN),
+          height: Math.min(clip.height, frameHeight + 2 * SEARCH_MARGIN),
+          radius: innerRadius + SEARCH_MARGIN,
+        };
 
     const sigma = round(clip.height * options.blurRatio);
     const original = options.plainOutput
@@ -421,8 +448,7 @@ async function measure(options: Options): Promise<Measurement> {
       paddingY: options.paddingY,
       innerRadius,
       outerRadius: options.radius,
-      useContainerRoundedEnd,
-      edgeGuard: EDGE_GUARD,
+      search,
     });
 
     const target = {
@@ -445,9 +471,17 @@ async function measure(options: Options): Promise<Measurement> {
         paddingX: options.paddingX,
         paddingY: options.paddingY,
         innerRadius: round(innerRadius),
-        usesContainerRoundedEnd: useContainerRoundedEnd,
+        usesContainerRoundedEnd,
       },
       polarity: analysis.polarity,
+      search: {
+        mode: search.mode,
+        insetX: round(search.insetX),
+        insetY: round(search.insetY),
+        width: round(search.width),
+        height: round(search.height),
+        radius: round(search.radius),
+      },
       blob: {
         centroidX: round(analysis.centroidX),
         centroidY: round(analysis.centroidY),
