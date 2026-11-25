@@ -78,9 +78,13 @@ node scripts/measure.ts \
 
 ## クレジット
 
-この手順は、[@Kubai087](https://x.com/Kubai087)さんが投稿した短い動画で実演されていたアイデアがもとになっています。
+この手順は、AppleがWWDC23のセッション「Design dynamic Live Activities」で紹介していた考え方がもとになっています。Dynamic Islandに中身を置くとき、中身をぼかして、できた形が外の縁と同心になるように置く、というものです。
 
-https://x.com/i/status/2122514434069537097
+https://developer.apple.com/videos/play/wwdc2023/10194/
+
+このセッションの映像は[@Kubai087](https://x.com/Kubai087)さんのポストで知りました。
+
+https://x.com/Kubai087/status/2122514434069537097
 
 [opticalcenter.dev](https://opticalcenter.dev/)・[make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better)
 

@@ -79,9 +79,13 @@ Use `bun` in place of `node` if you prefer. Pass `--browser` or set `OPTICAL_BLU
 
 ## Credits
 
-The procedure is based on an idea demonstrated in a short video posted by [@Kubai087](https://x.com/Kubai087):
+The procedure is based on a tip from Apple's WWDC23 session "Design dynamic Live Activities": when placing content in the Dynamic Island, blur it and make the resulting shape as concentric as possible with the outer border.
 
-https://x.com/i/status/2122514434069537097
+https://developer.apple.com/videos/play/wwdc2023/10194/
+
+I found the clip through a post by [@Kubai087](https://x.com/Kubai087):
+
+https://x.com/Kubai087/status/2122514434069537097
 
 [opticalcenter.dev](https://opticalcenter.dev/) · [make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better)
 
