@@ -2,33 +2,35 @@
 
 [English](README.md) | 日本語
 
-ボタン、ピル、チップ、FAB、角丸のカードの中にアイコンや文字を置くとき、見た目の中心に合わせるためのスキルです。中身をぼかして「見た目の重さの塊」にし、その丸い端を容器の丸い端の中心に合わせます。計測スクリプトはずれを px で返し、ずれていれば青、合っていれば緑の確認画像を出します。
+中央に置いたはずのアイコンや文字が、なんだか片側に寄って見えることはありませんか？そんなときのためのスキルです。ボタン、ピル、チップ、FAB、角丸のカードの中身を、見た目の中心に合わせます。
+
+中身をぼかして「見た目の重さのかたまり」にし、その丸い端をコンテナの丸い端の中心に合わせます。計測スクリプトを動かすと、ずれがpxで返ってきて確認画像も出ます。確認画像の枠が青ならずれていて、緑なら合っています。
 
 ![ピルの左端の飛行機のアイコンをそろえた例。上の段はぼかした確認画像で、左のずれた状態は青い枠、右の合わせた状態は緑の枠。下の段はぼかさない画面](docs/images/alignment-before-after.png)
 
-## ほかの道具との関係
+## ほかのツールとどう使い分ける？
 
-| 道具                                           | 答える問い                                 | 見るもの                             | 直し方                                                      |
-| ---------------------------------------------- | ------------------------------------------ | ------------------------------------ | ----------------------------------------------------------- |
-| make-interfaces-feel-better                    | どんな細部がUIを良く見せるか（原則の一覧） | コードと設計の原則                   | 原則を示す。測らない                                        |
-| opticalcenter.dev（v0.2.0-alpha、2026-11時点） | このアイコン単体の見た目の中心はどこか     | SVGのアイコンのピクセルだけ          | ビルドの時点で中心のずれを求め、viewBoxや配置の値に書き込む |
-| このスキル                                     | この容器の中で、中身の塊をどこに置くか     | 画面に描いた容器と中身（文字も含む） | 測ったずれを、paddingやtranslateの値で返す                  |
+| ツール                                         | こんな疑問に                                     | 見るもの                                   | 直し方                                                    |
+| ---------------------------------------------- | ------------------------------------------------ | ------------------------------------------ | --------------------------------------------------------- |
+| make-interfaces-feel-better                    | UIを良く見せる細部って？（原則の一覧）           | コードと設計の原則                         | 原則を示す。計測はしない                                  |
+| opticalcenter.dev（v0.2.0-alpha、2026-11時点） | このアイコン単体の見た目の中心はどこ？           | SVGのアイコンのピクセルだけ                | ビルド時に中心のずれを求めて、viewBoxや配置の値に書き込む |
+| このスキル                                     | このコンテナの中で、中身のかたまりをどこに置く？ | 画面に表示したコンテナと中身（文字も含む） | 測ったずれを、paddingやtranslateの値で返す                |
 
-1. make-interfaces-feel-better で、外の角丸 = 内の角丸 + padding になっているかなど、原則に沿っているかを見る
-2. opticalcenter.dev で、アイコンの形そのものの偏り（再生の三角など）を直す
-3. このスキルで、そのアイコンや文字を、容器の丸い端に対してどこに置くかを測って直す
-- 正方形のアイコンボタンで、アイコンの偏りだけが問題のとき → opticalcenter.dev だけで足りる
-- 文字や、左右に寄せて置く中身があるとき、ピルやチップの端に置くとき → このスキルが要る
+1. make-interfaces-feel-betterで、外の角丸 = 内の角丸 + paddingのような原則に沿っているかをチェックする
+2. opticalcenter.devで、アイコンの形そのものの偏り（再生の三角など）を直す
+3. このスキルで、コンテナの丸い端を基準に、そのアイコンや文字をどこに置くかを測って直す
+- 正方形のアイコンボタンで、気になるのがアイコンの偏りだけなら → opticalcenter.devだけでOK
+- 文字や左右に寄せて置く中身があるとき、ピルやチップの端に置くとき → このスキルが必要
 
 ## 入れ方
 
-skills CLI を使う場合:
+skills CLIを使うなら：
 
 ```bash
 npx skills add yukimasaki/optical-blur-alignment
 ```
 
-手で clone して置く場合は、`skills/optical-blur-alignment` を使っているエージェントのスキルのフォルダへコピーします。
+手でcloneして入れるなら、`skills/optical-blur-alignment`を、使っているエージェントのスキルフォルダにコピーしてください。
 
 ```bash
 git clone https://github.com/yukimasaki/optical-blur-alignment.git
@@ -37,20 +39,20 @@ cp -R optical-blur-alignment/skills/optical-blur-alignment <your-skills-director
 
 ## 必要なもの
 
-- Node.js 23.6以降（スクリプトが TypeScript の型を剥がして動かす）または Bun
-- playwright 用の Chromium ブラウザ: `npx playwright install chromium`
+- Node.js 23.6以降、またはBun（Node.jsではTypeScriptのスクリプトをtype strippingで実行します）
+- playwright用のChromiumブラウザ：`npx playwright install chromium`
 
-依存は `SKILL.md` と `package.json` のあるスキルのルートで入れます。
+依存パッケージはスキルのルート（`SKILL.md`と`package.json`がある場所）でインストールします。
 
 ```bash
 npm install
 ```
 
-`npx skills add` で入れた場合は、インストール先のスキルのフォルダで実行してください。
+`npx skills add`で入れたときは、インストール先のスキルフォルダで実行してください。
 
 ## 使い方
 
-手順の全体は [SKILL.md](skills/optical-blur-alignment/SKILL.md) を読んでください。スキルのルートで計測します。
+手順をひととおり知りたいときは[SKILL.md](skills/optical-blur-alignment/SKILL.md)を読んでください。計測はスキルのルートで、こんな感じで実行します。
 
 ```bash
 node scripts/measure.ts \
@@ -62,27 +64,27 @@ node scripts/measure.ts \
   --plain-output /path/to/a/temp/folder/icon-plain.png
 ```
 
-`node` の代わりに `bun` でも動きます。playwright がブラウザを見つけられないときは、`--browser` か `OPTICAL_BLUR_BROWSER` で実行ファイルを渡してください。
+`node`の代わりに`bun`でも動きます。playwrightがブラウザを見つけられないときは、`--browser`か`OPTICAL_BLUR_BROWSER`で実行ファイルを指定してください。
 
-| オプション                    | 用途                                                             |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `--padding-x`、`--padding-y`  | 横と縦の padding を別に渡す。`--padding` は両方に適用する        |
-| `--selector`                  | ぼかす中身。省略すると容器に残っているもの全部をぼかす           |
-| `--hide <selector>`           | 測るあいだ隠す兄弟要素。テキストを測るときにアイコンを隠す、など |
-| `--edge left\|right`          | どちらの丸い端に合わせるか                                       |
-| `--output`、`--plain-output`  | ぼかした確認画像と、ぼかさない通常画面                           |
-| `--tolerance`、`--blur-ratio` | 許容するずれ（既定2px）とぼかしの比率（既定0.1）                 |
+| オプション                    | 用途                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `--padding-x`、`--padding-y`  | 横と縦のpaddingを別々に渡す。`--padding`なら両方に適用                 |
+| `--selector`                  | ぼかす中身。省略すると、コンテナに残っているものを全部ぼかす           |
+| `--hide <selector>`           | 測るあいだ隠しておく兄弟要素。テキストを測るときにアイコンを隠す、など |
+| `--edge left\|right`          | どちらの丸い端に合わせるか                                             |
+| `--output`、`--plain-output`  | ぼかした確認画像と、ぼかさない通常の画面                               |
+| `--tolerance`、`--blur-ratio` | 許容するずれ（既定は2px）と、ぼかしの比率（既定は0.1）                 |
 
 ## クレジット
 
-この手順は [@Kubai087](https://x.com/Kubai087) が投稿した短い動画が実演した考え方を元にしています。
+この手順は、[@Kubai087](https://x.com/Kubai087)さんが投稿した短い動画で実演されていた考え方がもとになっています。
 
 https://x.com/i/status/2122514434069537097
 
 [opticalcenter.dev](https://opticalcenter.dev/) ・ [make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better)
 
-冒頭の画像の飛行機のアイコンは、[Lucide](https://lucide.dev/) の `plane`（ISC License）です。
+冒頭の画像の飛行機のアイコンは、[Lucide](https://lucide.dev/)の`plane`（ISC License）です。
 
 ## ライセンス
 
-MIT。[LICENSE](LICENSE) を読んでください。
+MITです。くわしくは[LICENSE](LICENSE)をどうぞ。
