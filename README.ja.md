@@ -40,12 +40,13 @@ cp -R optical-blur-alignment/skills/optical-blur-alignment <your-skills-director
 ## 必要なもの
 
 - Node.js 23.6以降、またはBun（Node.jsではTypeScriptのスクリプトをtype strippingで実行します）
-- Playwright用のChromiumブラウザ：`npx playwright install chromium`
+- Playwright用のChromiumブラウザ
 
-依存パッケージはスキルのルート（`SKILL.md`と`package.json`がある場所）でインストールします。
+スキルのルート（`SKILL.md`と`package.json`がある場所）で、依存パッケージとChromiumをこの順にインストールします。先に`npm install`しておくと、入れたPlaywrightの版に合ったChromiumが入ります。
 
 ```bash
 npm install
+npx playwright install chromium
 ```
 
 `npx skills add`で入れたときは、インストール先のスキルフォルダで実行してください。
@@ -66,14 +67,14 @@ node scripts/measure.ts \
 
 `node`の代わりに`bun`でも動きます。Playwrightがブラウザを見つけられないときは、`--browser`か`OPTICAL_BLUR_BROWSER`でブラウザの実行ファイルを指定してください。
 
-| オプション                    | 用途                                                                   |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `--padding-x`、`--padding-y`  | 左右と上下のpaddingを別々に渡す。`--padding`なら両方に適用             |
-| `--selector`                  | ぼかす中身。省略すると、コンテナ内の残りの要素を全部ぼかす             |
-| `--hide <selector>`           | 計測中に隠す兄弟要素（テキストだけを測るときにアイコンを隠す用途など） |
-| `--edge left\|right`          | どちらの丸い端に合わせるか                                             |
-| `--output`、`--plain-output`  | ぼかした確認画像と、ぼかしなしのスクリーンショット                     |
-| `--tolerance`、`--blur-ratio` | 許容するずれ（デフォルトは2px）と、ぼかしの比率（デフォルトは0.1）     |
+| オプション                    | 用途                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `--padding-x`、`--padding-y`  | 左右と上下のpaddingを別々に渡す。`--padding`なら両方に適用                                  |
+| `--selector`                  | ぼかす中身。省略すると、コンテナ内の残りの要素を全部ぼかす（このときは`--container`が必須） |
+| `--hide <selector>`           | 計測中に隠す兄弟要素（テキストだけを測るときにアイコンを隠す用途など）                      |
+| `--edge left\|right`          | どちらの丸い端に合わせるか                                                                  |
+| `--output`、`--plain-output`  | ぼかした確認画像と、ぼかしなしのスクリーンショット                                          |
+| `--tolerance`、`--blur-ratio` | 許容するずれ（デフォルトは2px）と、ぼかしの比率（デフォルトは0.1）                          |
 
 ## クレジット
 

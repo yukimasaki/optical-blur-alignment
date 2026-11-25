@@ -41,15 +41,16 @@ cp -R optical-blur-alignment/skills/optical-blur-alignment <your-skills-director
 ## Requirements
 
 - Node.js 23.6 or newer (the script uses TypeScript type stripping), or Bun
-- A Chromium browser for Playwright: `npx playwright install chromium`
+- A Chromium browser for Playwright
 
-Install the dependencies in the skill root, the directory with `SKILL.md` and `package.json`:
+In the skill root, the directory with `SKILL.md` and `package.json`, install the dependencies first and then Chromium. Running `npm install` first means you get the Chromium build that matches the installed Playwright version.
 
 ```bash
 npm install
+npx playwright install chromium
 ```
 
-If you installed the skill with `npx skills add`, run this inside the installed skill directory instead.
+If you installed the skill with `npx skills add`, run these inside the installed skill directory instead.
 
 ## Usage
 
@@ -70,7 +71,7 @@ Use `bun` in place of `node` if you prefer. Pass `--browser` or set `OPTICAL_BLU
 | Option | Purpose |
 |---|---|
 | `--padding-x`, `--padding-y` | Horizontal and vertical padding separately (`--padding` sets both). |
-| `--selector` | Content to blur. Omit it to blur everything left in the container. |
+| `--selector` | Content to blur. Omit it to blur everything left in the container (`--container` is then required). |
 | `--hide <selector>` | Sibling element to hide while measuring (for example, the icon when measuring bare text). |
 | `--edge left\|right` | Which rounded end of the container to align with. |
 | `--output`, `--plain-output` | Blurred verification image and unblurred screenshot. |
