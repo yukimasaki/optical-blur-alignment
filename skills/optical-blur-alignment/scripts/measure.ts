@@ -82,6 +82,7 @@ type Measurement = {
   aligned: boolean;
   suggestion: {
     translateX: number;
+    translateY: number;
     paddingLeftDelta: number;
     paddingRightDelta: number;
   };
@@ -457,9 +458,11 @@ async function measure(options: Options): Promise<Measurement> {
     };
     const roundEnd = blobRoundEnd(analysis.blob, options.edge);
     const roundEndOffset = roundEnd.x - target.x;
+    const centroidOffsetY = analysis.centroidY - target.y;
     const translateX = round(-roundEndOffset);
+    const translateY = round(-centroidOffsetY);
     const aligned = Math.abs(roundEndOffset) <= options.tolerance
-      && Math.abs(analysis.centroidY - target.y) <= options.tolerance;
+      && Math.abs(centroidOffsetY) <= options.tolerance;
 
     const result: Measurement = {
       input,
@@ -491,13 +494,14 @@ async function measure(options: Options): Promise<Measurement> {
       target: { x: round(target.x), y: round(target.y) },
       offset: {
         centroidX: round(analysis.centroidX - target.x),
-        centroidY: round(analysis.centroidY - target.y),
+        centroidY: round(centroidOffsetY),
         edge: round((options.edge === "left" ? analysis.blob.left : analysis.blob.right) - target.x),
         roundEnd: round(roundEndOffset),
       },
       aligned,
       suggestion: {
         translateX,
+        translateY,
         paddingLeftDelta: translateX,
         paddingRightDelta: -translateX,
       },

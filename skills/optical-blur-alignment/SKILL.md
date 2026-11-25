@@ -71,7 +71,7 @@ The output is JSON plus the verification image (and the plain image when request
 - `frame.usesContainerRoundedEnd`: `true` when horizontal and vertical padding differ by 1px or more, or when the inner radius collapsed below 4px. It describes the **target**, not where pixels are searched.
 - `search`: the rectangle used to collect blob pixels (`mode`, `insetX`, `insetY`, `width`, `height`, `radius`). With a collapsed inner radius the mode is `container`; otherwise it is `inner-frame` with a 2px margin, even when the target is the container's rounded end. For the chip (`padding-x 16`, `padding-y 0`) it is `inner-frame` with `insetY: 0` and `radius: 22`, so the search covers almost the full 40px height. An earlier revision searched only the strict inner frame (an 8px-tall band when both paddings were 16px); the current 2px margin makes the "Add" blob's lower edge y=26 instead of 24. That is why its `roundEnd` moved from -1.5 to -2 without the text being moved.
 - `aligned`: `true` when `roundEnd` and the vertical centroid are both within tolerance.
-- `suggestion`: the displacement to apply. `translateX` is the primary value (positive right, negative left); `paddingLeftDelta` and `paddingRightDelta` are the same displacement expressed as padding changes, with the right side negated.
+- `suggestion`: the displacement to apply. `translateX` is the primary value (positive right, negative left); `paddingLeftDelta` and `paddingRightDelta` are the same displacement expressed as padding changes, with the right side negated. `translateY` is the vertical displacement (positive down, negative up); it is `offset.centroidY` with the sign flipped.
 - Verification image: the blurred blob with the frame that matches the target drawn over it (the inner frame, or the container outline when `usesContainerRoundedEnd` is true). Green means aligned, blue means off. The cross at the target center uses the same color as the frame, the orange dot is the blob's rounded end center, and the yellow dot is the centroid.
 
 Enlarge the image and look at it. Even with a zero offset, fix the position if the blob cuts into the inner corner or leaves an uneven gap at the top and bottom.
@@ -86,6 +86,8 @@ Pick the form already used in the project and apply the `suggestion` value.
 | `left` / `right` | The content is absolutely positioned with `left` or `right` | Add `translateX` to `left`; subtract it from `right`. Example: `left: 22px` with `translateX: +10` becomes `left: 32px`; `right: 8px` with `translateX: -12.5` becomes `right: 20.5px`. One Tailwind form is `left-[32px]`. |
 | `translate` | Shared UI primitives should keep their padding; only one icon or label needs to move | `transform: translateX(10px);` (Tailwind form: `translate-x-[10px]`). Positive is right, negative is left. |
 | SVG viewBox or path | The shape itself is asymmetric, and padding or translate would break in other states | Move the icon's path coordinates and add no extra margin at the call site. |
+
+When `translateY` is outside the tolerance, also move the content vertically: `transform: translateY(2px);`, or combine both axes as `transform: translate(10px, 2px);` (Tailwind form: `translate-y-[2px]`). If the content is absolutely positioned with `top`, add `translateY` to `top` instead.
 
 Prefer the method the screen already uses. Do not put two of these on the same content; that moves it twice. Follow the direction from the measurement rather than a generic rule about icon-side spacing.
 
