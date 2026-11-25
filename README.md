@@ -12,7 +12,7 @@ Blur the content into a blob of perceived weight, then align the blob's rounded 
 
 | Tool | Question it answers | What it looks at | How it fixes things |
 |---|---|---|---|
-| make-interfaces-feel-better | Which details make a UI look good? (a list of principles) | Code and design principles | Gives you the principles. Doesn't measure |
+| make-interfaces-feel-better | Which details make a UI look good? (a list of principles) | Code and design principles | Gives you the principles. Does not measure |
 | opticalcenter.dev (v0.2.0-alpha, as of 2026-11) | Where is the visual center of this icon on its own? | Only the pixels of SVG icons | Finds the center offset at build time and writes it into the viewBox or placement values |
 | This skill | Where should the content blob sit inside this container? | The rendered container and content, text included | Returns the measured offset as padding or translate values |
 
@@ -41,9 +41,9 @@ cp -R optical-blur-alignment/skills/optical-blur-alignment <your-skills-director
 ## Requirements
 
 - Node.js 23.6 or newer (the script uses TypeScript type stripping), or Bun
-- A Chromium browser for playwright: `npx playwright install chromium`
+- A Chromium browser for Playwright: `npx playwright install chromium`
 
-Install the dependency in the skill root, the directory with `SKILL.md` and `package.json`:
+Install the dependencies in the skill root, the directory with `SKILL.md` and `package.json`:
 
 ```bash
 npm install
@@ -65,13 +65,13 @@ node scripts/measure.ts \
   --plain-output /path/to/a/temp/folder/icon-plain.png
 ```
 
-Use `bun` in place of `node` if you prefer. Pass `--browser` or set `OPTICAL_BLUR_BROWSER` when playwright cannot find a browser.
+Use `bun` in place of `node` if you prefer. Pass `--browser` or set `OPTICAL_BLUR_BROWSER` when Playwright cannot find a browser.
 
 | Option | Purpose |
 |---|---|
-| `--padding-x`, `--padding-y` | Horizontal and vertical padding separately. `--padding` sets both. |
+| `--padding-x`, `--padding-y` | Horizontal and vertical padding separately (`--padding` sets both). |
 | `--selector` | Content to blur. Omit it to blur everything left in the container. |
-| `--hide <selector>` | Hide a sibling while measuring, for example the icon when measuring bare text. |
+| `--hide <selector>` | Sibling element to hide while measuring (for example, the icon when measuring bare text). |
 | `--edge left\|right` | Which rounded end of the container to align with. |
 | `--output`, `--plain-output` | Blurred verification image and unblurred screenshot. |
 | `--tolerance`, `--blur-ratio` | Alignment tolerance in px (default 2) and blur ratio (default 0.1). |
