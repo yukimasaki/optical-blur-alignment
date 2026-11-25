@@ -2,7 +2,26 @@
 
 English | [日本語](README.ja.md)
 
-A skill for placing an icon or text inside a button, pill, chip, FAB, or rounded card so that it looks centered. Blur the content into a blob of perceived weight, then align the blob's rounded end with the center of the container's rounded end. The measurement script reports the offset in pixels and draws a blue (off) or green (aligned) verification image.
+Ever centered an icon or a label, only to have it still look pushed to one side? This skill helps the content of a button, pill, chip, FAB, or rounded card look centered.
+
+Blur the content into a blob of perceived weight, then align the blob's rounded end with the center of the container's rounded end. Run the measurement script and you get the offset in pixels plus a verification image: a blue frame means it's off, a green one means it's aligned.
+
+![Aligning a plane icon at the left end of a pill. Top row: blurred verification images, with a blue frame around the misaligned state on the left and a green frame around the aligned state on the right. Bottom row: the screen without blur](docs/images/alignment-before-after.png)
+
+## How it fits with other tools
+
+| Tool | Question it answers | What it looks at | How it fixes things |
+|---|---|---|---|
+| make-interfaces-feel-better | Which details make a UI look good? (a list of principles) | Code and design principles | Gives you the principles. Doesn't measure |
+| opticalcenter.dev (v0.2.0-alpha, as of 2026-11) | Where is the visual center of this icon on its own? | Only the pixels of SVG icons | Finds the center offset at build time and writes it into the viewBox or placement values |
+| This skill | Where should the content blob sit inside this container? | The rendered container and content, text included | Returns the measured offset as padding or translate values |
+
+1. Use make-interfaces-feel-better to check that your UI follows its principles, such as outer radius = inner radius + padding
+2. Use opticalcenter.dev to fix any lopsidedness in the icon shape itself (a play triangle, for example)
+3. Use this skill to measure where that icon or text should sit relative to the container's rounded end, and fix it
+
+- Square icon button where the only problem is a lopsided icon → opticalcenter.dev is all you need
+- Working with text, left- or right-aligned content, or something at the end of a pill or chip → you need this skill
 
 ## Install
 
@@ -57,11 +76,15 @@ Use `bun` in place of `node` if you prefer. Pass `--browser` or set `OPTICAL_BLU
 | `--output`, `--plain-output` | Blurred verification image and unblurred screenshot. |
 | `--tolerance`, `--blur-ratio` | Alignment tolerance in px (default 2) and blur ratio (default 0.1). |
 
-## Source
+## Credits
 
-The procedure comes from the idea demonstrated in a short video posted by [@Kubai087](https://x.com/Kubai087):
+The procedure is based on an idea demonstrated in a short video posted by [@Kubai087](https://x.com/Kubai087):
 
-[Original post](https://x.com/i/status/2122514434069537097)
+https://x.com/i/status/2122514434069537097
+
+[opticalcenter.dev](https://opticalcenter.dev/) · [make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better)
+
+The plane icon in the image at the top is [Lucide](https://lucide.dev/)'s `plane` (ISC License).
 
 ## License
 
